@@ -1,0 +1,9 @@
+node_modules/
+.env
+storage/uploads/
+storage/google_drive_synced/
+storage/obsidian_vault_output/
+data/settings.json
+data/history.json
+.DS_Store
+Thumbs.db
