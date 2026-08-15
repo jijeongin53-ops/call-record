@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>갤럭시 통화 녹음 자동 정리 & 옵시디언 동기화</title>
+  <!-- Google Fonts: Pretendard/Inter -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Pretendard:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="app-container">
+    <!-- Header -->
+    <header class="app-header">
+      <div class="header-left">
+        <div class="logo-icon">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path>
+          </svg>
+        </div>
+        <div>
+          <h1>갤럭시 통화 녹음 AI 정리기</h1>
+          <p class="subtitle">구글 드라이브 백업 & 옵시디언(Obsidian) 자동 동기화 허브</p>
+        </div>
+      </div>
+      <div class="header-actions">
+        <button id="headerSyncDriveBtn" class="btn btn-primary">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>
+          구글 드라이브 지금 동기화
+        </button>
+        <button id="guideBtn" class="btn btn-secondary">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+          갤럭시 자동동기화 가이드
+        </button>
+        <button id="settingsBtn" class="btn btn-outline">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+          연동 설정
+        </button>
+      </div>
+    </header>
+
+    <!-- Main Content Grid -->
+    <main class="main-content">
+      <!-- Left Column: Upload & Trigger -->
+      <section class="upload-section">
+        <div class="card upload-card">
+          <div class="card-header">
+            <h2>🎙️ 통화 녹음 파일 업로드 & 분석</h2>
+            <span class="badge">Galaxy M4A / MP3 지원</span>
+          </div>
+
+          <div class="dropzone" id="dropzone">
+            <input type="file" id="fileInput" accept="audio/*,.m4a,.mp3,.amr,.wav" class="file-input">
+            <div class="dropzone-content">
+              <div class="upload-icon">
+                <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+              </div>
+              <p class="dropzone-text"><strong>갤럭시 통화 녹음 파일</strong>을 여기에 끌어다 놓으세요</p>
+              <p class="dropzone-sub">또는 클릭하여 내 PC의 녹음 파일 선택 (.m4a, .mp3)</p>
+            </div>
+          </div>
+
+          <div class="upload-actions" style="display: flex; gap: 10px; flex-direction: column;">
+            <button id="syncDriveBtn" class="btn btn-secondary" style="width: 100%; justify-content: center;">
+              <span>🔄</span> 구글 드라이브 새 녹음 지금 동기화
+            </button>
+            <button id="sampleBtn" class="btn btn-ghost">
+              <span>⚡</span> 테스트용 샘플 통화 즉시 분석해보기
+            </button>
+          </div>
+
+          <div id="processingCard" class="processing-card hidden">
+            <div class="spinner"></div>
+            <div class="processing-info">
+              <h4 id="processingStatusTitle">통화 녹음 AI 분석 진행 중...</h4>
+              <p id="processingStatusDetail">Google Gemini가 음성을 듣고 화자/주요 내용을 요약 중입니다.</p>
+              <div class="pipeline-steps">
+                <span class="step-badge" id="step1">1. 음성 분석</span>
+                <span class="step-arrow">→</span>
+                <span class="step-badge" id="step2">2. 드라이브 업로드</span>
+                <span class="step-arrow">→</span>
+                <span class="step-badge" id="step3">3. 옵시디언 동기화</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- System Status Summary -->
+        <div class="card status-card">
+          <h3>📌 동기화 대상 요약</h3>
+          <div class="status-items">
+            <div class="status-item">
+              <span class="status-label">구글 드라이브:</span>
+              <span class="status-val" id="statusDriveVal">설정됨 (연동 준비완료)</span>
+            </div>
+            <div class="status-item">
+              <span class="status-label">옵시디언 볼트:</span>
+              <span class="status-val" id="statusObsidianVal">기본 로컬 저장소</span>
+            </div>
+            <div class="status-item">
+              <span class="status-label">AI 분석 엔진:</span>
+              <span class="status-val" id="statusAiVal">Gemini 2.5 Flash</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Right Column: Processed Notes & History -->
+      <section class="history-section">
+        <div class="card history-card">
+          <div class="card-header">
+            <h2>📋 정리된 통화 기록 목록</h2>
+            <span id="historyCount" class="badge badge-primary">0건</span>
+          </div>
+
+          <div id="historyList" class="history-list">
+            <!-- Dynamic Items will be rendered here -->
+            <div class="empty-state">
+              <div class="empty-icon">📁</div>
+              <p>아직 분석된 통화 기록이 없습니다.</p>
+              <p class="empty-sub">위의 업로드 영역에 갤럭시 녹음 파일을 추가해보세요!</p>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <!-- Settings Modal -->
+    <div id="settingsModal" class="modal hidden">
+      <div class="modal-backdrop"></div>
+      <div class="modal-dialog">
+        <div class="modal-header">
+          <h2>⚙️ 연동 및 API 설정</h2>
+          <button class="modal-close" id="closeSettingsBtn">&times;</button>
+        </div>
+        <div class="modal-body">
+          <form id="settingsForm">
+            <div class="form-group">
+              <label for="geminiApiKey">Google Gemini API Key <span class="required">*</span></label>
+              <input type="password" id="geminiApiKey" placeholder="AIzaSy..." class="form-input">
+              <small class="form-help">음성 텍스트 변환 및 비즈니스 요약에 사용됩니다. (Google AI Studio에서 무료 발급)</small>
+            </div>
+
+            <div class="form-group">
+              <label for="obsidianVaultPath">옵시디언 볼트(Vault) 폴더 경로</label>
+              <input type="text" id="obsidianVaultPath" placeholder="예: C:\Users\사용자명\Documents\MyObsidianVault\CallNotes" class="form-input">
+              <small class="form-help">생성된 마크다운(.md) 통화 노트가 이 폴더에 즉시 저장됩니다.</small>
+            </div>
+
+            <div class="form-group">
+              <label for="googleDriveLocalPath">PC용 구글 드라이브 동기화 폴더 경로 (완전 자동화)</label>
+              <input type="text" id="googleDriveLocalPath" placeholder="예: G:\내 드라이브\통화내용 또는 C:\Users\사용자명\Google Drive\통화내용" class="form-input">
+              <small class="form-help">💡 경로를 입력해두시면 폰에서 올라온 새 녹음 파일을 30초마다 100% 자동 감지하여 옵시디언에 생성합니다.</small>
+            </div>
+
+            <div class="form-group">
+              <label for="googleDriveFolderId">구글 드라이브 대상 폴더 ID (선택)</label>
+              <input type="text" id="googleDriveFolderId" placeholder="예: 1A2b3C4d5E6f7G..." class="form-input">
+              <small class="form-help">구글 드라이브 폴더 URL의 마지막 영문/숫자 코드</small>
+            </div>
+
+            <div class="form-group">
+              <label for="googleDriveCredentials">구글 서비스 계정 키 JSON / 경로 (선택)</label>
+              <textarea id="googleDriveCredentials" rows="3" placeholder='{"type": "service_account", ...} 또는 service-account.json 파일 경로' class="form-input"></textarea>
+              <small class="form-help">미입력 시 기본 백업 저장소로 작동하며 링크가 생성됩니다.</small>
+            </div>
+
+            <div class="modal-actions">
+              <button type="button" class="btn btn-outline" id="cancelSettingsBtn">취소</button>
+              <button type="submit" class="btn btn-primary">설정 저장</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <!-- Galaxy Setup Guide Modal -->
+    <div id="guideModal" class="modal hidden">
+      <div class="modal-backdrop"></div>
+      <div class="modal-dialog modal-large">
+        <div class="modal-header">
+          <h2>📱 갤럭시 스마트폰 ↔ 구글 드라이브 자동 동기화 3단계</h2>
+          <button class="modal-close" id="closeGuideBtn">&times;</button>
+        </div>
+        <div class="modal-body guide-body">
+          <div class="guide-step">
+            <div class="step-num">1</div>
+            <div class="step-desc">
+              <h4>갤럭시 기본 전화 앱에서 [자동 통화 녹음] 켜기</h4>
+              <p>전화 앱 설정 → <strong>통화 녹음</strong> → <strong>통화 자동 녹음 활성화</strong> (녹음 파일은 <code>내장메모리/Recordings/Call</code> 에 자동 저장됩니다).</p>
+            </div>
+          </div>
+
+          <div class="guide-step">
+            <div class="step-num">2</div>
+            <div class="step-desc">
+              <h4>무료 동기화 앱(FolderSync) 설치</h4>
+              <p>Google Play 스토어에서 <strong>FolderSync</strong>(또는 AutoSync) 앱을 설치하고, 본인의 <strong>구글 드라이브 계정을 연결</strong>합니다.</p>
+            </div>
+          </div>
+
+          <div class="guide-step">
+            <div class="step-num">3</div>
+            <div class="step-desc">
+              <h4>동기화 폴더 페어(Folderpair) 만들기</h4>
+              <p>
+                - <strong>스마트폰 폴더:</strong> <code>Recordings/Call</code> 선택<br>
+                - <strong>구글 드라이브 폴더:</strong> 통화녹음 백업용 폴더 선택<br>
+                - <strong>동기화 유형:</strong> '로컬 폴더에서 원격으로(업로드)' 설정 및 '통화 후 즉시 동기화' 활성화
+              </p>
+            </div>
+          </div>
+
+          <div class="guide-tip">
+            💡 이제 스마트폰으로 통화가 끝나면 자동으로 구글 드라이브에 녹음본이 올라가며, 이 웹앱에서 바로 요약 리포트와 옵시디언 노트로 정리할 수 있습니다.
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

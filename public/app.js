@@ -1,0 +1,324 @@
+document.addEventListener('DOMContentLoaded', () => {
+  // Elements
+  const dropzone = document.getElementById('dropzone');
+  const fileInput = document.getElementById('fileInput');
+  const sampleBtn = document.getElementById('sampleBtn');
+  const processingCard = document.getElementById('processingCard');
+  const processingStatusTitle = document.getElementById('processingStatusTitle');
+  const processingStatusDetail = document.getElementById('processingStatusDetail');
+  const historyList = document.getElementById('historyList');
+  const historyCount = document.getElementById('historyCount');
+
+  // Status Elements
+  const statusDriveVal = document.getElementById('statusDriveVal');
+  const statusObsidianVal = document.getElementById('statusObsidianVal');
+
+  // Modals & Buttons
+  const settingsBtn = document.getElementById('settingsBtn');
+  const settingsModal = document.getElementById('settingsModal');
+  const closeSettingsBtn = document.getElementById('closeSettingsBtn');
+  const cancelSettingsBtn = document.getElementById('cancelSettingsBtn');
+  const settingsForm = document.getElementById('settingsForm');
+
+  const guideBtn = document.getElementById('guideBtn');
+  const guideModal = document.getElementById('guideModal');
+  const closeGuideBtn = document.getElementById('closeGuideBtn');
+
+  // Form Inputs
+  const geminiApiKeyInput = document.getElementById('geminiApiKey');
+  const obsidianVaultPathInput = document.getElementById('obsidianVaultPath');
+  const googleDriveLocalPathInput = document.getElementById('googleDriveLocalPath');
+  const googleDriveFolderIdInput = document.getElementById('googleDriveFolderId');
+  const googleDriveCredentialsInput = document.getElementById('googleDriveCredentials');
+  const syncDriveBtn = document.getElementById('syncDriveBtn');
+
+  // Initialize
+  loadSettings();
+  loadHistory();
+  // 10초마다 히스토리 자동 갱신
+  setInterval(loadHistory, 10000);
+
+  // 1. Settings Loading & Saving
+  async function loadSettings() {
+    try {
+      const res = await fetch('/api/settings');
+      const data = await res.json();
+      if (data.success && data.settings) {
+        const s = data.settings;
+        geminiApiKeyInput.value = s.geminiApiKey || '';
+        obsidianVaultPathInput.value = s.obsidianVaultPath || '';
+        if (googleDriveLocalPathInput) googleDriveLocalPathInput.value = s.googleDriveLocalPath || '';
+        googleDriveFolderIdInput.value = s.googleDriveFolderId || '';
+        googleDriveCredentialsInput.value = s.googleDriveCredentials || '';
+
+        // Status bar update
+        if (s.googleDriveLocalPath) {
+          statusDriveVal.textContent = `PC 자동연동 (${s.googleDriveLocalPath})`;
+        } else if (s.googleDriveFolderId) {
+          statusDriveVal.textContent = `클라우드 연동 (${s.googleDriveFolderId.substring(0, 8)}...)`;
+        } else {
+          statusDriveVal.textContent = '로컬 백업 모드';
+        }
+        statusObsidianVal.textContent = s.obsidianVaultPath ? s.obsidianVaultPath : '기본 볼트 폴더';
+      }
+    } catch (err) {
+      console.error('설정 불러오기 실패:', err);
+    }
+  }
+
+  settingsForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const updatedSettings = {
+      geminiApiKey: geminiApiKeyInput.value.trim(),
+      obsidianVaultPath: obsidianVaultPathInput.value.trim(),
+      googleDriveLocalPath: googleDriveLocalPathInput ? googleDriveLocalPathInput.value.trim() : '',
+      googleDriveFolderId: googleDriveFolderIdInput.value.trim(),
+      googleDriveCredentials: googleDriveCredentialsInput.value.trim()
+    };
+
+    try {
+      const res = await fetch('/api/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updatedSettings)
+      });
+      const data = await res.json();
+      if (data.success) {
+        alert('설정이 안전하게 저장되었습니다.');
+        settingsModal.classList.add('hidden');
+        loadSettings();
+      }
+    } catch (err) {
+      alert('설정 저장 중 오류가 발생했습니다: ' + err.message);
+    }
+  });
+
+  // Modal Controls
+  settingsBtn.addEventListener('click', () => settingsModal.classList.remove('hidden'));
+  closeSettingsBtn.addEventListener('click', () => settingsModal.classList.add('hidden'));
+  cancelSettingsBtn.addEventListener('click', () => settingsModal.classList.add('hidden'));
+  settingsModal.querySelector('.modal-backdrop').addEventListener('click', () => settingsModal.classList.add('hidden'));
+
+  guideBtn.addEventListener('click', () => guideModal.classList.remove('hidden'));
+  closeGuideBtn.addEventListener('click', () => guideModal.classList.add('hidden'));
+  guideModal.querySelector('.modal-backdrop').addEventListener('click', () => guideModal.classList.add('hidden'));
+
+  // 2. File Upload & Processing
+  dropzone.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    dropzone.classList.add('drag-over');
+  });
+
+  dropzone.addEventListener('dragleave', () => {
+    dropzone.classList.remove('drag-over');
+  });
+
+  dropzone.addEventListener('drop', (e) => {
+    e.preventDefault();
+    dropzone.classList.remove('drag-over');
+    if (e.dataTransfer.files.length > 0) {
+      handleFileUpload(e.dataTransfer.files[0]);
+    }
+  });
+
+  fileInput.addEventListener('change', (e) => {
+    if (e.target.files.length > 0) {
+      handleFileUpload(e.target.files[0]);
+    }
+  });
+
+  async function handleFileUpload(file) {
+    const formData = new FormData();
+    formData.append('audio', file);
+
+    showProcessing('통화 녹음 AI 분석 파이프라인 시작...', `${file.name} 파일 업로드 및 분석 중`);
+
+    try {
+      const res = await fetch('/api/process-audio', {
+        method: 'POST',
+        body: formData
+      });
+      const data = await res.json();
+
+      if (data.success) {
+        hideProcessing();
+        loadHistory();
+      } else {
+        hideProcessing();
+        alert('오류 발생: ' + data.message);
+        loadHistory();
+      }
+    } catch (err) {
+      hideProcessing();
+      alert('요청 중 통신 오류가 발생했습니다: ' + err.message);
+      loadHistory();
+    }
+  }
+
+  // 3. 구글 드라이브 새 녹음 즉시 동기화 버튼
+  const headerSyncDriveBtn = document.getElementById('headerSyncDriveBtn');
+  const triggerSync = async () => {
+    showProcessing('구글 드라이브 폴더 스캔 중...', '새로 업로드된 통화 녹음 파일을 찾는 중입니다.');
+    try {
+      const res = await fetch('/api/sync-drive', { method: 'POST' });
+      const data = await res.json();
+      hideProcessing();
+      if (data.success) {
+        alert(`동기화 완료: ${data.processedCount}개의 새 녹음 파일을 처리했습니다.`);
+        loadHistory();
+      } else {
+        alert('동기화 실패: ' + (data.message || '오류 발생'));
+      }
+    } catch (err) {
+      hideProcessing();
+      alert('동기화 통신 오류: ' + err.message);
+    }
+  };
+
+  if (syncDriveBtn) syncDriveBtn.addEventListener('click', triggerSync);
+  if (headerSyncDriveBtn) headerSyncDriveBtn.addEventListener('click', triggerSync);
+
+  // 4. Sample Simulation Trigger
+  sampleBtn.addEventListener('click', async () => {
+    showProcessing('샘플 통화 데이터 시뮬레이션 처리 중...', '가상의 갤럭시 통화 녹음 파일 분석 및 동기화 테스트');
+    try {
+      const res = await fetch('/api/process-sample', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fileName: `통화 녹음 김부장_${new Date().toISOString().slice(0,10).replace(/-/g,'')}_143000.m4a` })
+      });
+      const data = await res.json();
+      hideProcessing();
+      if (data.success) {
+        loadHistory();
+      }
+    } catch (err) {
+      hideProcessing();
+      alert('샘플 실행 실패: ' + err.message);
+    }
+  });
+
+  function showProcessing(title, detail) {
+    processingCard.classList.remove('hidden');
+    processingStatusTitle.textContent = title;
+    processingStatusDetail.textContent = detail;
+  }
+
+  function hideProcessing() {
+    processingCard.classList.add('hidden');
+  }
+
+  // 4. Load and Render History
+  async function loadHistory() {
+    try {
+      const res = await fetch('/api/history');
+      const data = await res.json();
+      if (data.success) {
+        renderHistoryList(data.history || []);
+      }
+    } catch (err) {
+      console.error('히스토리 로드 에러:', err);
+    }
+  }
+
+  function renderHistoryList(items) {
+    historyCount.textContent = `${items.length}건`;
+
+    if (items.length === 0) {
+      historyList.innerHTML = `
+        <div class="empty-state">
+          <div class="empty-icon">📁</div>
+          <p>아직 분석된 통화 기록이 없습니다.</p>
+          <p class="empty-sub">위의 업로드 영역에 갤럭시 녹음 파일을 추가해보세요!</p>
+        </div>
+      `;
+      return;
+    }
+
+    historyList.innerHTML = items.map(item => {
+      const a = item.analysis || {};
+      const keywordsHtml = (a.keywords || []).map(k => `<span class="tag-badge">#${escapeHtml(k)}</span>`).join(' ');
+      const actionItemsHtml = (a.actionItems && a.actionItems.length > 0)
+        ? `<div class="action-items-list">
+             <div class="action-items-title">✅ 주요 실행 과제 (Action Items)</div>
+             ${a.actionItems.map(act => `<div class="action-item"><span>▫️</span> ${escapeHtml(act)}</div>`).join('')}
+           </div>`
+        : '';
+
+      const transcriptHtml = (a.transcript && a.transcript.length > 0)
+        ? `<details class="transcript-accordion">
+             <summary>대화 녹취록 전체 보기 (${a.transcript.length}개 대화)</summary>
+             <div class="transcript-content">
+               ${a.transcript.map(t => `<div class="transcript-bubble"><strong>${escapeHtml(t.speaker)}:</strong> ${escapeHtml(t.text)}</div>`).join('')}
+             </div>
+           </details>`
+        : '';
+
+      const driveLink = item.driveAudio?.webViewLink || '#';
+      const obsidianUri = item.obsidian?.obsidianUri || '#';
+
+      return `
+        <div class="call-item-card">
+          <div class="call-item-header">
+            <div>
+              <h3 class="call-title">${escapeHtml(a.title || item.originalFileName)}</h3>
+              <div class="call-meta-bar">
+                <span>📅 ${a.callDate || '날짜미상'} ${a.callTime || ''}</span>
+                <span>👤 담당/상대: <strong>${escapeHtml(a.managerName || '미확인')}</strong></span>
+                <span class="badge badge-sentiment">분위기: ${escapeHtml(a.sentiment || '보통')}</span>
+              </div>
+            </div>
+            <button class="btn btn-sm btn-outline" onclick="deleteHistory('${item.id}')" title="삭제">🗑️</button>
+          </div>
+
+          <div style="margin-bottom: 10px;">
+            ${keywordsHtml}
+          </div>
+
+          <div class="summary-box">
+            <strong>💡 요약:</strong> ${escapeHtml(a.summary || item.statusMessage || '분석 진행 중')}
+          </div>
+
+          ${actionItemsHtml}
+          ${transcriptHtml}
+
+          <div class="call-actions-footer">
+            <span style="font-size: 0.8rem; color: var(--text-muted);">
+              💾 ${item.obsidian?.fileName ? `옵시디언 노트 생성: <code>${escapeHtml(item.obsidian.fileName)}</code>` : '동기화 완료'}
+            </span>
+            <div class="links-group">
+              <a href="${driveLink}" target="_blank" class="btn btn-sm btn-drive">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
+                구글 드라이브 원본/리포트
+              </a>
+              <a href="${obsidianUri}" class="btn btn-sm btn-obsidian">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 2 7 12 12 22 7 12 2"></polygon><polyline points="2 17 12 22 22 17"></polyline><polyline points="2 12 12 17 22 12"></polyline></svg>
+                옵시디언에서 노트 열기
+              </a>
+            </div>
+          </div>
+        </div>
+      `;
+    }).join('');
+  }
+
+  window.deleteHistory = async (id) => {
+    if (!confirm('이 기록을 목록에서 삭제하시겠습니까?')) return;
+    try {
+      await fetch(`/api/history/${id}`, { method: 'DELETE' });
+      loadHistory();
+    } catch (err) {
+      alert('삭제 실패: ' + err.message);
+    }
+  };
+
+  function escapeHtml(text) {
+    if (!text) return '';
+    return text.toString()
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
+  }
+});
