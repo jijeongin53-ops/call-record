@@ -3,12 +3,15 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { getSettings } from './storageService.js';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const DEFAULT_NOTES_DIR = path.join(__dirname, '../../storage/obsidian_vault_output');
+const isVercel = Boolean(process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME);
+const DEFAULT_NOTES_DIR = isVercel ? '/tmp/obsidian_vault_output' : path.join(__dirname, '../../storage/obsidian_vault_output');
 
-if (!fs.existsSync(DEFAULT_NOTES_DIR)) {
-  fs.mkdirSync(DEFAULT_NOTES_DIR, { recursive: true });
+try {
+  if (!fs.existsSync(DEFAULT_NOTES_DIR)) {
+    fs.mkdirSync(DEFAULT_NOTES_DIR, { recursive: true });
+  }
+} catch (e) {
+  console.warn('옵시디언 기본 디렉터리 생성 경고:', e.message);
 }
 
 /**

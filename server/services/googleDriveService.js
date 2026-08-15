@@ -4,12 +4,15 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { getSettings } from './storageService.js';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const LOCAL_DRIVE_BACKUP_DIR = path.join(__dirname, '../../storage/google_drive_synced');
+const isVercel = Boolean(process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME);
+const LOCAL_DRIVE_BACKUP_DIR = isVercel ? '/tmp/google_drive_synced' : path.join(__dirname, '../../storage/google_drive_synced');
 
-if (!fs.existsSync(LOCAL_DRIVE_BACKUP_DIR)) {
-  fs.mkdirSync(LOCAL_DRIVE_BACKUP_DIR, { recursive: true });
+try {
+  if (!fs.existsSync(LOCAL_DRIVE_BACKUP_DIR)) {
+    fs.mkdirSync(LOCAL_DRIVE_BACKUP_DIR, { recursive: true });
+  }
+} catch (e) {
+  console.warn('드라이브 백업 디렉터리 생성 경고:', e.message);
 }
 
 // Google Drive 클라이언트 인스턴스 생성

@@ -13,12 +13,15 @@ import { saveToObsidianVault } from './services/obsidianService.js';
 
 dotenv.config();
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const UPLOAD_DIR = path.join(__dirname, '../storage/uploads');
+const isVercel = Boolean(process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME);
+const UPLOAD_DIR = isVercel ? '/tmp/uploads' : path.join(__dirname, '../storage/uploads');
 
-if (!fs.existsSync(UPLOAD_DIR)) {
-  fs.mkdirSync(UPLOAD_DIR, { recursive: true });
+try {
+  if (!fs.existsSync(UPLOAD_DIR)) {
+    fs.mkdirSync(UPLOAD_DIR, { recursive: true });
+  }
+} catch (e) {
+  console.warn('업로드 디렉터리 생성 경고:', e.message);
 }
 
 // Multer 파일 업로드 설정
@@ -253,30 +256,34 @@ app.get('/api/files/download/:filename', (req, res) => {
   }
 });
 
-// 백그라운드 자동 스캔 타이머 (30초마다 실행)
-setInterval(async () => {
-  const settings = getSettings();
-  if (settings.autoProcessNewRecordings && settings.googleDriveLocalPath && fs.existsSync(settings.googleDriveLocalPath)) {
-    try {
-      const processedHistory = getHistory();
-      const processedNames = new Set(processedHistory.map(h => h.originalFileName));
-      const files = fs.readdirSync(settings.googleDriveLocalPath);
-      const audioFiles = files.filter(f => /\.(m4a|mp3|wav|amr)$/i.test(f));
+// 백그라운드 자동 스캔 타이머 (로컬 실행 시에만 30초마다 실행)
+if (!isVercel) {
+  setInterval(async () => {
+    const settings = getSettings();
+    if (settings.autoProcessNewRecordings && settings.googleDriveLocalPath && fs.existsSync(settings.googleDriveLocalPath)) {
+      try {
+        const processedHistory = getHistory();
+        const processedNames = new Set(processedHistory.map(h => h.originalFileName));
+        const files = fs.readdirSync(settings.googleDriveLocalPath);
+        const audioFiles = files.filter(f => /\.(m4a|mp3|wav|amr)$/i.test(f));
 
-      for (const file of audioFiles) {
-        if (!processedNames.has(file)) {
-          const fullPath = path.join(settings.googleDriveLocalPath, file);
-          console.log(`[자동 감지] 새 통화녹음 파일 처리 시작: ${file}`);
-          await processCallRecording(fullPath, file, 'audio/mp4');
-          processedNames.add(file);
+        for (const file of audioFiles) {
+          if (!processedNames.has(file)) {
+            const fullPath = path.join(settings.googleDriveLocalPath, file);
+            console.log(`[자동 감지] 새 통화녹음 파일 처리 시작: ${file}`);
+            await processCallRecording(fullPath, file, 'audio/mp4');
+            processedNames.add(file);
+          }
         }
+      } catch (e) {
+        console.warn('백그라운드 자동 스캔 경고:', e.message);
       }
-    } catch (e) {
-      console.warn('백그라운드 자동 스캔 경고:', e.message);
     }
-  }
-}, 30000);
+  }, 30000);
 
-app.listen(PORT, () => {
-  console.log(`🚀 갤럭시 통화녹음 자동정리 서버 가동: http://localhost:${PORT}`);
-});
+  app.listen(PORT, () => {
+    console.log(`🚀 갤럭시 통화녹음 자동정리 서버 가동: http://localhost:${PORT}`);
+  });
+}
+
+export default app;
