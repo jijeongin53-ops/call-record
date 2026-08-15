@@ -40,30 +40,42 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // 1. Settings Loading & Saving
   async function loadSettings() {
+    let s = {};
+    // 브라우저 로컬스토리지 우선 확인
+    try {
+      const localSaved = localStorage.getItem('galaxy_call_settings');
+      if (localSaved) {
+        s = JSON.parse(localSaved);
+      }
+    } catch (e) {}
+
     try {
       const res = await fetch('/api/settings');
-      const data = await res.json();
-      if (data.success && data.settings) {
-        const s = data.settings;
-        geminiApiKeyInput.value = s.geminiApiKey || '';
-        obsidianVaultPathInput.value = s.obsidianVaultPath || '';
-        if (googleDriveLocalPathInput) googleDriveLocalPathInput.value = s.googleDriveLocalPath || '';
-        googleDriveFolderIdInput.value = s.googleDriveFolderId || '';
-        googleDriveCredentialsInput.value = s.googleDriveCredentials || '';
-
-        // Status bar update
-        if (s.googleDriveLocalPath) {
-          statusDriveVal.textContent = `PC 자동연동 (${s.googleDriveLocalPath})`;
-        } else if (s.googleDriveFolderId) {
-          statusDriveVal.textContent = `클라우드 연동 (${s.googleDriveFolderId.substring(0, 8)}...)`;
-        } else {
-          statusDriveVal.textContent = '로컬 백업 모드';
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success && data.settings) {
+          s = { ...s, ...data.settings };
         }
-        statusObsidianVal.textContent = s.obsidianVaultPath ? s.obsidianVaultPath : '기본 볼트 폴더';
       }
     } catch (err) {
-      console.error('설정 불러오기 실패:', err);
+      console.warn('서버 설정 불러오기 대체:', err);
     }
+
+    if (geminiApiKeyInput) geminiApiKeyInput.value = s.geminiApiKey || '';
+    if (obsidianVaultPathInput) obsidianVaultPathInput.value = s.obsidianVaultPath || '';
+    if (googleDriveLocalPathInput) googleDriveLocalPathInput.value = s.googleDriveLocalPath || '';
+    if (googleDriveFolderIdInput) googleDriveFolderIdInput.value = s.googleDriveFolderId || '';
+    if (googleDriveCredentialsInput) googleDriveCredentialsInput.value = s.googleDriveCredentials || '';
+
+    // Status bar update
+    if (s.googleDriveLocalPath) {
+      statusDriveVal.textContent = `PC 자동연동 (${s.googleDriveLocalPath})`;
+    } else if (s.googleDriveFolderId) {
+      statusDriveVal.textContent = `클라우드 연동 (${s.googleDriveFolderId.substring(0, 8)}...)`;
+    } else {
+      statusDriveVal.textContent = '로컬 백업 모드';
+    }
+    statusObsidianVal.textContent = s.obsidianVaultPath ? s.obsidianVaultPath : '기본 볼트 폴더';
   }
 
   settingsForm.addEventListener('submit', async (e) => {
@@ -76,21 +88,27 @@ document.addEventListener('DOMContentLoaded', () => {
       googleDriveCredentials: googleDriveCredentialsInput.value.trim()
     };
 
+    // 로컬 스토리지에 즉시 영구 저장
+    try {
+      localStorage.setItem('galaxy_call_settings', JSON.stringify(updatedSettings));
+    } catch (e) {}
+
     try {
       const res = await fetch('/api/settings', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(updatedSettings)
       });
-      const data = await res.json();
-      if (data.success) {
-        alert('설정이 안전하게 저장되었습니다.');
-        settingsModal.classList.add('hidden');
-        loadSettings();
+      if (res.ok) {
+        await res.json();
       }
     } catch (err) {
-      alert('설정 저장 중 오류가 발생했습니다: ' + err.message);
+      console.warn('서버 설정 동기화 알림 (로컬 저장 유지):', err.message);
     }
+
+    alert('설정이 안전하게 저장되었습니다.');
+    settingsModal.classList.add('hidden');
+    loadSettings();
   });
 
   // Modal Controls

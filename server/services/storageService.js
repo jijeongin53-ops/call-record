@@ -4,24 +4,22 @@ import { fileURLToPath } from 'url';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const DATA_DIR = path.join(__dirname, '../../data');
+const isVercel = Boolean(process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME);
+const DATA_DIR = isVercel ? '/tmp/data' : path.join(__dirname, '../../data');
 const SETTINGS_FILE = path.join(DATA_DIR, 'settings.json');
 const HISTORY_FILE = path.join(DATA_DIR, 'history.json');
 
-// 기본 설정 초기화
-const DEFAULT_SETTINGS = {
-  geminiApiKey: process.env.GEMINI_API_KEY || '',
-  googleDriveFolderId: '',
-  googleDriveLocalPath: '', // PC용 구글 드라이브 동기화 폴더 경로 (예: G:/내 드라이브/통화내용)
-  googleDriveCredentials: '', // 서비스 계정 JSON 또는 토큰
-  obsidianVaultPath: '', // 옵시디언 볼트 로컬 경로 (예: C:/Users/.../MyVault/CallNotes)
-  autoScanIntervalMin: 10,
-  autoProcessNewRecordings: true
-};
+// 인메모리 캐시 (서버리스 환경 대비)
+let memorySettings = { ...DEFAULT_SETTINGS };
+let memoryHistory = [];
 
 // 데이터 디렉터리 확인 및 생성
-if (!fs.existsSync(DATA_DIR)) {
-  fs.mkdirSync(DATA_DIR, { recursive: true });
+try {
+  if (!fs.existsSync(DATA_DIR)) {
+    fs.mkdirSync(DATA_DIR, { recursive: true });
+  }
+} catch (e) {
+  console.warn('데이터 디렉토리 생성 경고 (인메모리 모드 사용):', e.message);
 }
 
 // 설정 불러오기
@@ -29,25 +27,27 @@ export function getSettings() {
   try {
     if (fs.existsSync(SETTINGS_FILE)) {
       const data = fs.readFileSync(SETTINGS_FILE, 'utf-8');
-      return { ...DEFAULT_SETTINGS, ...JSON.parse(data) };
+      memorySettings = { ...DEFAULT_SETTINGS, ...JSON.parse(data) };
+      return memorySettings;
     }
   } catch (error) {
-    console.error('설정 로드 실패:', error);
+    console.warn('설정 파일 로드 경고 (인메모리 반환):', error.message);
   }
-  return DEFAULT_SETTINGS;
+  return memorySettings;
 }
 
 // 설정 저장하기
 export function saveSettings(newSettings) {
+  memorySettings = { ...memorySettings, ...newSettings };
   try {
-    const current = getSettings();
-    const updated = { ...current, ...newSettings };
-    fs.writeFileSync(SETTINGS_FILE, JSON.stringify(updated, null, 2), 'utf-8');
-    return updated;
+    if (!fs.existsSync(DATA_DIR)) {
+      fs.mkdirSync(DATA_DIR, { recursive: true });
+    }
+    fs.writeFileSync(SETTINGS_FILE, JSON.stringify(memorySettings, null, 2), 'utf-8');
   } catch (error) {
-    console.error('설정 저장 실패:', error);
-    throw error;
+    console.warn('설정 파일 저장 실패 (인메모리 유지):', error.message);
   }
+  return memorySettings;
 }
 
 // 분석 이력 불러오기
