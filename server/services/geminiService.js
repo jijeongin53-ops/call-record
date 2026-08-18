@@ -25,8 +25,13 @@ export async function analyzeCallAudio(filePath, originalFilename, mimeType = 'a
   }
 
   const genAI = new GoogleGenerativeAI(apiKey);
-  // Gemini 2.5 Flash 모델 사용 (오디오 분석 및 한글 요약에 최적화됨)
-  const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
+  // Gemini 3.6 Flash 모델 사용 (오디오 분석 및 한글 요약 최신 모델)
+  let model;
+  try {
+    model = genAI.getGenerativeModel({ model: 'gemini-3.6-flash' });
+  } catch (e) {
+    model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
+  }
 
   const audioPart = fileToGenerativePart(filePath, mimeType);
 
