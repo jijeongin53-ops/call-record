@@ -282,8 +282,8 @@ router.post('/sync-drive', async (req, res) => {
               try { fs.unlinkSync(tempDownloadPath); } catch (uErr) {}
             }
           }
-          // API 과부하 방지 및 안정적인 단계적 처리를 위해 2초 대기
-          await new Promise(r => setTimeout(r, 2000));
+          // API 쿼터(429) 초과 방지 및 안정적인 단계적 처리를 위해 5초 대기
+          await new Promise(r => setTimeout(r, 5000));
         }
       }
     } catch (err) {

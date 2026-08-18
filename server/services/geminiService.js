@@ -63,8 +63,8 @@ export async function analyzeCallAudio(filePath, originalFilename, mimeType = 'a
   const candidateModels = ['gemini-3.6-flash'];
   let lastError = null;
 
-  // 단계별 재시도 로직 (최대 3회 재시도 및 대기시간 점진 증가)
-  for (let attempt = 1; attempt <= 3; attempt++) {
+  // 단계별 재시도 로직 (최대 4회 재시도 및 429 쿼터 초과 시 7~14초 스마트 대기)
+  for (let attempt = 1; attempt <= 4; attempt++) {
     for (const modelName of candidateModels) {
       try {
         const model = genAI.getGenerativeModel({ model: modelName });
@@ -82,10 +82,11 @@ export async function analyzeCallAudio(filePath, originalFilename, mimeType = 'a
         const parsedData = JSON.parse(cleanedJsonStr);
         return parsedData;
       } catch (error) {
-        console.warn(`[시도 ${attempt}/3] Gemini ${modelName} 호출 실패:`, error.message);
+        console.warn(`[시도 ${attempt}/4] Gemini ${modelName} 호출 실패:`, error.message);
         lastError = error;
-        // 503 과부하 또는 Rate Limit 시 점진 대기 (2초 -> 4초 -> 6초)
-        const delayMs = attempt * 2000;
+        // 429 (Rate Limit / Quota) 발생 시 구글 요청에 따라 7~10초 대기 후 자동 재시도
+        const is429 = error.message && (error.message.includes('429') || error.message.includes('Quota'));
+        const delayMs = is429 ? (attempt * 7000) : (attempt * 3000);
         await new Promise(r => setTimeout(r, delayMs));
       }
     }
