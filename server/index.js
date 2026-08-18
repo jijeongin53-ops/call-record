@@ -163,7 +163,11 @@ router.post('/process-audio', upload.single('audio'), async (req, res) => {
 
 // 4. 구글 드라이브 폴더 자동 스캔 및 새 녹음 파일 일괄 동기화
 router.post('/sync-drive', async (req, res) => {
-  const settings = getSettings();
+  const clientSettings = req.body?.settings || {};
+  if (clientSettings.geminiApiKey || clientSettings.googleDriveCredentials || clientSettings.googleDriveFolderId) {
+    saveSettings(clientSettings);
+  }
+  const settings = { ...getSettings(), ...clientSettings };
   const processedHistory = getHistory();
   const processedNames = new Set(processedHistory.map(h => h.originalFileName));
   const newProcessed = [];
@@ -179,8 +183,8 @@ router.post('/sync-drive', async (req, res) => {
         if (!processedNames.has(file)) {
           const fullPath = path.join(settings.googleDriveLocalPath, file);
           try {
-            const res = await processCallRecording(fullPath, file, 'audio/mp4');
-            newProcessed.push(res);
+            const resItem = await processCallRecording(fullPath, file, 'audio/mp4');
+            newProcessed.push(resItem);
             processedNames.add(file);
           } catch (e) {
             errors.push({ file, error: e.message });
@@ -203,8 +207,8 @@ router.post('/sync-drive', async (req, res) => {
           const tempDownloadPath = path.join(UPLOAD_DIR, `gdrive_${Date.now()}_${file.name}`);
           try {
             await downloadDriveFile(file.id, tempDownloadPath);
-            const res = await processCallRecording(tempDownloadPath, file.name, file.mimeType || 'audio/mp4');
-            newProcessed.push(res);
+            const resItem = await processCallRecording(tempDownloadPath, file.name, file.mimeType || 'audio/mp4');
+            newProcessed.push(resItem);
             processedNames.add(file.name);
           } catch (e) {
             errors.push({ file: file.name, error: e.message });
@@ -213,6 +217,7 @@ router.post('/sync-drive', async (req, res) => {
       }
     } catch (err) {
       console.error('구글 드라이브 클라우드 스캔 실패:', err);
+      errors.push({ error: `구글 드라이브 스캔 실패: ${err.message}` });
     }
   }
 

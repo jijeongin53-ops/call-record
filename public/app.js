@@ -178,15 +178,27 @@ document.addEventListener('DOMContentLoaded', () => {
   const triggerSync = async () => {
     showProcessing('구글 드라이브 동기화 진행 중...', '통화 녹음 파일을 확인하고 있습니다.');
     try {
-      const res = await fetch('/api/sync-drive', { method: 'POST' });
+      let savedSettings = {};
+      try {
+        const local = localStorage.getItem('galaxy_call_settings');
+        if (local) savedSettings = JSON.parse(local);
+      } catch (e) {}
+
+      const res = await fetch('/api/sync-drive', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ settings: savedSettings })
+      });
       hideProcessing();
       if (res.ok) {
         const data = await res.json();
         if (data.success) {
           if (data.processedCount > 0) {
-            alert(`동기화 완료: ${data.processedCount}개의 새 녹음 파일을 처리했습니다.`);
+            alert(`🎉 동기화 완료: ${data.processedCount}개의 새 통화 녹음 파일을 분석하여 정리했습니다!`);
+          } else if (data.errors && data.errors.length > 0) {
+            alert(`동기화 오류 알림:\n${data.errors.map(e => e.error || e.file).join('\n')}`);
           } else {
-            alert('동기화 완료: 새로운 통화 녹음 파일이 없습니다. (녹음 파일을 직접 화면에 드래그하여 올리실 수도 있습니다.)');
+            alert('동기화 완료: 새로운 통화 녹음 파일이 없습니다.\n(구글 드라이브 폴더에 서비스 계정이 공유되어 있는지 확인해 주세요.)');
           }
           loadHistory();
         } else {

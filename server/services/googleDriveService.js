@@ -18,28 +18,33 @@ try {
 }
 
 // Google Drive 클라이언트 인스턴스 생성
-function getDriveClient() {
+function getDriveClient(customCredentials = null) {
   const settings = getSettings();
-  if (!settings.googleDriveCredentials) {
+  const rawCreds = customCredentials || settings.googleDriveCredentials;
+  if (!rawCreds) {
     return null;
   }
 
   try {
     let credentials;
-    if (typeof settings.googleDriveCredentials === 'string') {
+    if (typeof rawCreds === 'string') {
       // 파일 경로인지 혹은 JSON 문자열인지 확인
-      if (fs.existsSync(settings.googleDriveCredentials)) {
-        credentials = JSON.parse(fs.readFileSync(settings.googleDriveCredentials, 'utf-8'));
+      if (fs.existsSync(rawCreds)) {
+        credentials = JSON.parse(fs.readFileSync(rawCreds, 'utf-8'));
       } else {
-        credentials = JSON.parse(settings.googleDriveCredentials);
+        credentials = JSON.parse(rawCreds);
       }
     } else {
-      credentials = settings.googleDriveCredentials;
+      credentials = rawCreds;
     }
 
     const auth = new google.auth.GoogleAuth({
       credentials,
-      scopes: ['https://www.googleapis.com/auth/drive.file', 'https://www.googleapis.com/auth/drive']
+      scopes: [
+        'https://www.googleapis.com/auth/drive',
+        'https://www.googleapis.com/auth/drive.file',
+        'https://www.googleapis.com/auth/drive.readonly'
+      ]
     });
 
     return google.drive({ version: 'v3', auth });
