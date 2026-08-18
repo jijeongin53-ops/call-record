@@ -13,6 +13,8 @@ import { saveToObsidianVault } from './services/obsidianService.js';
 
 dotenv.config();
 
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 const isVercel = Boolean(process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME);
 const UPLOAD_DIR = isVercel ? '/tmp/uploads' : path.join(__dirname, '../storage/uploads');
 

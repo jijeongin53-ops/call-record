@@ -9,6 +9,17 @@ const DATA_DIR = isVercel ? '/tmp/data' : path.join(__dirname, '../../data');
 const SETTINGS_FILE = path.join(DATA_DIR, 'settings.json');
 const HISTORY_FILE = path.join(DATA_DIR, 'history.json');
 
+// 기본 설정 초기화
+const DEFAULT_SETTINGS = {
+  geminiApiKey: process.env.GEMINI_API_KEY || '',
+  googleDriveFolderId: '',
+  googleDriveLocalPath: '', // PC용 구글 드라이브 동기화 폴더 경로 (예: G:/내 드라이브/통화내용)
+  googleDriveCredentials: '', // 서비스 계정 JSON 또는 토큰
+  obsidianVaultPath: '', // 옵시디언 볼트 로컬 경로 (예: C:/Users/.../MyVault/CallNotes)
+  autoScanIntervalMin: 10,
+  autoProcessNewRecordings: true
+};
+
 // 인메모리 캐시 (서버리스 환경 대비)
 let memorySettings = { ...DEFAULT_SETTINGS };
 let memoryHistory = [];

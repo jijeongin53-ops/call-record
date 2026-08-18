@@ -4,6 +4,8 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { getSettings } from './storageService.js';
 
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 const isVercel = Boolean(process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME);
 const LOCAL_DRIVE_BACKUP_DIR = isVercel ? '/tmp/google_drive_synced' : path.join(__dirname, '../../storage/google_drive_synced');
 

@@ -3,6 +3,8 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { getSettings } from './storageService.js';
 
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 const isVercel = Boolean(process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME);
 const DEFAULT_NOTES_DIR = isVercel ? '/tmp/obsidian_vault_output' : path.join(__dirname, '../../storage/obsidian_vault_output');
 
