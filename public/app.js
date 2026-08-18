@@ -266,6 +266,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function renderHistoryList(items) {
+    window.currentHistoryItems = items || [];
     historyCount.textContent = `${items.length}건`;
 
     if (items.length === 0) {
@@ -331,6 +332,9 @@ document.addEventListener('DOMContentLoaded', () => {
               💾 ${item.obsidian?.fileName ? `옵시디언 노트 생성: <code>${escapeHtml(item.obsidian.fileName)}</code>` : '동기화 완료'}
             </span>
             <div class="links-group">
+              <button class="btn btn-sm btn-outline" onclick="copyMarkdown('${item.id}')" title="마크다운 내용 복사">
+                📋 마크다운 복사
+              </button>
               <a href="${driveLink}" target="_blank" class="btn btn-sm btn-drive">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
                 구글 드라이브 원본/리포트
@@ -345,6 +349,21 @@ document.addEventListener('DOMContentLoaded', () => {
       `;
     }).join('');
   }
+
+  // 마크다운 복사 핸들러
+  window.copyMarkdown = (id) => {
+    try {
+      const item = currentHistoryItems.find(i => i.id === id);
+      if (item && item.obsidian?.markdownContent) {
+        navigator.clipboard.writeText(item.obsidian.markdownContent);
+        alert('📋 옵시디언 마크다운 내용이 클립보드에 복사되었습니다! 옵시디언에 붙여넣기(Ctrl+V)하세요.');
+      } else {
+        alert('마크다운 내용을 찾을 수 없습니다.');
+      }
+    } catch (e) {
+      alert('복사 중 오류: ' + e.message);
+    }
+  };
 
   window.deleteHistory = async (id) => {
     if (!confirm('이 기록을 목록에서 삭제하시겠습니까?')) return;

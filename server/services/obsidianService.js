@@ -114,10 +114,14 @@ ${(analysisData.transcript && analysisData.transcript.length > 0)
     console.warn('옵시디언 로컬 파일 저장 건너뜀 (서버리스 환경):', e.message);
   }
 
+  // Obsidian New URI: 브라우저에서 클릭 시 옵시디언 내 '통화내용 분석' 폴더에 해당 마크다운 내용을 즉시 생성
+  const obsidianNewUri = `obsidian://new?file=${encodeURIComponent('통화내용 분석/' + sanitizedTitle)}&content=${encodeURIComponent(markdownContent)}`;
+
   return {
     filePath,
     fileName,
     markdownContent,
-    obsidianUri: `obsidian://open?file=${encodeURIComponent(sanitizedTitle)}`
+    obsidianUri: obsidianNewUri,
+    obsidianOpenUri: `obsidian://open?file=${encodeURIComponent(sanitizedTitle)}`
   };
 }
