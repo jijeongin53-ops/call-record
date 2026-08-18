@@ -184,10 +184,19 @@ document.addEventListener('DOMContentLoaded', () => {
         if (local) savedSettings = JSON.parse(local);
       } catch (e) {}
 
+      const completedFileNames = (window.currentHistoryItems || [])
+        .filter(h => h.status === 'completed' || h.status === 'skipped')
+        .map(h => h.originalFileName);
+
       const res = await fetch('/api/sync-drive', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ settings: savedSettings })
+        body: JSON.stringify({ 
+          settings: { 
+            ...savedSettings,
+            completedFileNames 
+          } 
+        })
       });
       hideProcessing();
       if (res.ok) {

@@ -35,12 +35,13 @@ export async function analyzeCallAudio(filePath, originalFilename, mimeType = 'a
 
 요청하는 JSON 구조:
 {
+  "isShortCall": false, // 통화 실제 대화 길이가 10초 미만이거나 단순 부재중/연결음/단순 끊김인 경우 true
   "callDate": "YYYY-MM-DD", // 통화 날짜 (파일 이름이나 대화 내용 기준)
   "callTime": "HH:MM", // 통화 시간
   "managerName": "담당자/상대방 이름 또는 직함 (모를 경우 '미확인' 또는 파일명의 대상)",
   "keywords": ["핵심키워드1", "핵심키워드2", "핵심키워드3"], // 2~4개의 핵심 단어
   "title": "날짜_담당자_주요주제 형식의 한글 제목 (예: 2026-08-15_홍길동_계약서 검토 및 미팅 일정 조율)",
-  "summary": "전체 통화 내용의 3~5줄 핵심 요약",
+  "summary": "전체 통화 내용의 3~5줄 핵심 요약 (10초 미만인 경우 '10초 미만 짧은 통화'로 기록)",
   "actionItems": [
     "다음에 해야 할 구체적인 할 일(Action Item) 목록"
   ],
@@ -53,7 +54,8 @@ export async function analyzeCallAudio(filePath, originalFilename, mimeType = 'a
   ]
 }
 
-주의사항:
+규칙 및 주의사항:
+- [중요 규칙] 실제 의미 있는 대화가 10초 미만이거나 신호음/부재중 안내만 있는 경우 반드시 "isShortCall": true 로 설정하세요.
 - Markdown 코드 블록(예: \`\`\`json ... \`\`\`)으로 감싸서 반환하거나 순수 JSON으로 반환하세요.
 - 한국어로 정확하고 정중하게 요약해 주세요.
 `;

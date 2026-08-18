@@ -85,6 +85,15 @@ router.delete('/history/:id', (req, res) => {
 // 재사용 가능한 통화녹음 전체 파이프라인 처리 함수
 async function processCallRecording(filePath, originalName, mimeType = 'audio/mp4', customSettings = {}) {
   const settings = { ...getSettings(), ...customSettings };
+  
+  // 규칙 2: 이미 분석 완료된 파일인지 중복 검사
+  const existingHistory = getHistory();
+  const alreadyCompleted = existingHistory.find(h => h.originalFileName === originalName && (h.status === 'completed' || h.status === 'skipped'));
+  if (alreadyCompleted) {
+    console.log(`[중복 건너뜀] 이미 분석 완료된 파일: ${originalName}`);
+    return alreadyCompleted;
+  }
+
   const historyEntry = {
     id: `call_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
     originalFileName: originalName,
@@ -94,17 +103,49 @@ async function processCallRecording(filePath, originalName, mimeType = 'audio/mp
   addHistoryItem(historyEntry);
 
   try {
-    // 1단계: 구글 드라이브에 원본 녹음 파일 백업
+    // 1단계: 파일 크기 사전 검사 (10초 미만 초단기 통화 1차 필터링, 약 15KB 이하)
+    const fileStats = fs.existsSync(filePath) ? fs.statSync(filePath) : null;
+    if (fileStats && fileStats.size < 15 * 1024) {
+      const skippedEntry = {
+        ...historyEntry,
+        status: 'skipped',
+        statusMessage: '10초 미만 짧은 통화로 분석 제외됨',
+        analysis: {
+          title: originalName,
+          summary: '10초 미만의 짧은 통화 또는 부재중 연결음으로 자동 분석을 건너뛰었습니다.',
+          keywords: ['짧은통화', '제외'],
+          managerName: '미지정'
+        },
+        completedAt: new Date().toISOString()
+      };
+      addHistoryItem(skippedEntry);
+      return skippedEntry;
+    }
+
+    // 2단계: Gemini AI 통화 분석 및 STT
+    historyEntry.statusMessage = 'Gemini AI 통화 분석 및 대화 내용 확인 중...';
+    addHistoryItem(historyEntry);
+    const analysisData = await analyzeCallAudio(filePath, originalName, mimeType, settings.geminiApiKey);
+
+    // 규칙 1: AI 분석 결과 10초 미만의 짧은 통화/부재중인 경우 노트 생성 제외
+    if (analysisData.isShortCall) {
+      const shortCallEntry = {
+        ...historyEntry,
+        status: 'skipped',
+        statusMessage: '10초 미만 짧은 통화로 분석 제외됨',
+        analysis: analysisData,
+        completedAt: new Date().toISOString()
+      };
+      addHistoryItem(shortCallEntry);
+      return shortCallEntry;
+    }
+
+    // 3단계: 구글 드라이브에 원본 녹음 파일 백업
     historyEntry.statusMessage = '구글 드라이브에 원본 오디오 백업 중...';
     addHistoryItem(historyEntry);
     const driveAudioResult = await uploadToGoogleDrive(filePath, originalName, mimeType, settings.googleDriveFolderId, settings.googleDriveCredentials);
 
-    // 2단계: Gemini AI 통화 분석 및 STT
-    historyEntry.statusMessage = 'Gemini AI 통화 분석 및 핵심 요약 추출 중...';
-    addHistoryItem(historyEntry);
-    const analysisData = await analyzeCallAudio(filePath, originalName, mimeType, settings.geminiApiKey);
-
-    // 3단계: 구글 드라이브에 분석 리포트 마크다운 업로드
+    // 4단계: 구글 드라이브에 분석 리포트 마크다운 업로드
     historyEntry.statusMessage = '구글 드라이브에 분석 리포트 업로드 중...';
     addHistoryItem(historyEntry);
     const reportFileName = `${analysisData.callDate}_${analysisData.managerName}_${(analysisData.keywords || []).slice(0, 3).join('_')}_리포트.md`;
@@ -115,7 +156,7 @@ async function processCallRecording(filePath, originalName, mimeType = 'audio/mp
       settings.googleDriveCredentials
     );
 
-    // 4단계: 옵시디언 볼트에 마크다운 파일 저장
+    // 5단계: 옵시디언 볼트에 마크다운 파일 저장
     historyEntry.statusMessage = '옵시디언 볼트에 노트 저장 중...';
     addHistoryItem(historyEntry);
     const obsidianResult = await saveToObsidianVault(analysisData, driveAudioResult, driveReportResult);
@@ -179,7 +220,16 @@ router.post('/sync-drive', async (req, res) => {
   }
   const settings = { ...getSettings(), ...clientSettings };
   const processedHistory = getHistory();
-  const processedNames = new Set(processedHistory.map(h => h.originalFileName));
+  // 이미 성공했거나 건너뛴 파일명 목록 구성
+  const processedNames = new Set(
+    processedHistory
+      .filter(h => h.status === 'completed' || h.status === 'skipped')
+      .map(h => h.originalFileName)
+  );
+  if (clientSettings.completedFileNames && Array.isArray(clientSettings.completedFileNames)) {
+    clientSettings.completedFileNames.forEach(name => processedNames.add(name));
+  }
+
   const newProcessed = [];
   const errors = [];
 
