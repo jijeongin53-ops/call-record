@@ -256,23 +256,34 @@ router.post('/sync-drive', async (req, res) => {
     }
   }
 
-  // 방법 B: Google Drive API (서비스 계정)를 통한 원격 폴더 직접 스캔 및 동기화
+  // 방법 B: Google Drive API (서비스 계정)를 통한 원격 폴더 직접 스캔 및 단계적 순차 동기화
   if (settings.googleDriveCredentials && settings.googleDriveFolderId) {
     try {
       const driveFiles = await listDriveFiles(settings.googleDriveFolderId, settings.googleDriveCredentials);
       const audioFiles = driveFiles.filter(f => /\.(m4a|mp3|wav|amr)$/i.test(f.name));
 
-      for (const file of audioFiles) {
+      for (let i = 0; i < audioFiles.length; i++) {
+        const file = audioFiles[i];
         if (!processedNames.has(file.name)) {
+          console.log(`[단계적 분석 진행 ${i + 1}/${audioFiles.length}] 시작: ${file.name}`);
           const tempDownloadPath = path.join(UPLOAD_DIR, `gdrive_${Date.now()}_${file.name}`);
           try {
             await downloadDriveFile(file.id, tempDownloadPath, settings.googleDriveCredentials);
+            // 하나의 분석이 완전히 완료된 후 다음 파일 진행
             const resItem = await processCallRecording(tempDownloadPath, file.name, file.mimeType || 'audio/mp4', settings);
             newProcessed.push(resItem);
             processedNames.add(file.name);
           } catch (e) {
+            console.error(`[분석 실패] ${file.name}:`, e.message);
             errors.push({ file: file.name, error: e.message });
+          } finally {
+            // 임시 다운로드 파일 정리
+            if (fs.existsSync(tempDownloadPath)) {
+              try { fs.unlinkSync(tempDownloadPath); } catch (uErr) {}
+            }
           }
+          // API 과부하 방지 및 안정적인 단계적 처리를 위해 2초 대기
+          await new Promise(r => setTimeout(r, 2000));
         }
       }
     } catch (err) {

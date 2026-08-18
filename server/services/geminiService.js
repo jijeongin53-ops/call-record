@@ -60,29 +60,34 @@ export async function analyzeCallAudio(filePath, originalFilename, mimeType = 'a
 - 한국어로 정확하고 정중하게 요약해 주세요.
 `;
 
-  const candidateModels = ['gemini-3.6-flash', 'gemini-2.5-flash'];
+  const candidateModels = ['gemini-3.6-flash'];
   let lastError = null;
 
-  for (const modelName of candidateModels) {
-    try {
-      const model = genAI.getGenerativeModel({ model: modelName });
-      const result = await model.generateContent([prompt, audioPart]);
-      const responseText = result.response.text();
+  // 단계별 재시도 로직 (최대 3회 재시도 및 대기시간 점진 증가)
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    for (const modelName of candidateModels) {
+      try {
+        const model = genAI.getGenerativeModel({ model: modelName });
+        const result = await model.generateContent([prompt, audioPart]);
+        const responseText = result.response.text();
 
-      // JSON 파싱 (코드블록 제거 처리)
-      let cleanedJsonStr = responseText.trim();
-      if (cleanedJsonStr.startsWith('```json')) {
-        cleanedJsonStr = cleanedJsonStr.replace(/^```json/, '').replace(/```$/, '').trim();
-      } else if (cleanedJsonStr.startsWith('```')) {
-        cleanedJsonStr = cleanedJsonStr.replace(/^```/, '').replace(/```$/, '').trim();
+        // JSON 파싱 (코드블록 제거 처리)
+        let cleanedJsonStr = responseText.trim();
+        if (cleanedJsonStr.startsWith('```json')) {
+          cleanedJsonStr = cleanedJsonStr.replace(/^```json/, '').replace(/```$/, '').trim();
+        } else if (cleanedJsonStr.startsWith('```')) {
+          cleanedJsonStr = cleanedJsonStr.replace(/^```/, '').replace(/```$/, '').trim();
+        }
+
+        const parsedData = JSON.parse(cleanedJsonStr);
+        return parsedData;
+      } catch (error) {
+        console.warn(`[시도 ${attempt}/3] Gemini ${modelName} 호출 실패:`, error.message);
+        lastError = error;
+        // 503 과부하 또는 Rate Limit 시 점진 대기 (2초 -> 4초 -> 6초)
+        const delayMs = attempt * 2000;
+        await new Promise(r => setTimeout(r, delayMs));
       }
-
-      const parsedData = JSON.parse(cleanedJsonStr);
-      return parsedData;
-    } catch (error) {
-      console.warn(`Gemini 모델 ${modelName} 호출 시도 실패:`, error.message);
-      lastError = error;
-      await new Promise(r => setTimeout(r, 1000));
     }
   }
 
