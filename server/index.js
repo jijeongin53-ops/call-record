@@ -50,12 +50,14 @@ app.use(express.json({ limit: '10mb' }));
 app.use(express.static(path.join(__dirname, '../public')));
 app.use('/storage', express.static(path.join(__dirname, '../storage')));
 
+const router = express.Router();
+
 // 1. 설정 API
-app.get('/api/settings', (req, res) => {
+router.get('/settings', (req, res) => {
   res.json({ success: true, settings: getSettings() });
 });
 
-app.post('/api/settings', (req, res) => {
+router.post('/settings', (req, res) => {
   try {
     const updated = saveSettings(req.body);
     res.json({ success: true, settings: updated });
@@ -65,11 +67,11 @@ app.post('/api/settings', (req, res) => {
 });
 
 // 2. 히스토리 API
-app.get('/api/history', (req, res) => {
+router.get('/history', (req, res) => {
   res.json({ success: true, history: getHistory() });
 });
 
-app.delete('/api/history/:id', (req, res) => {
+router.delete('/history/:id', (req, res) => {
   try {
     deleteHistoryItem(req.params.id);
     res.json({ success: true });
@@ -140,7 +142,7 @@ async function processCallRecording(filePath, originalName, mimeType = 'audio/mp
 }
 
 // 3. 통화 녹음 파일 업로드 및 전체 파이프라인 처리
-app.post('/api/process-audio', upload.single('audio'), async (req, res) => {
+router.post('/process-audio', upload.single('audio'), async (req, res) => {
   if (!req.file) {
     return res.status(400).json({ success: false, message: '녹음 오디오 파일이 필요합니다.' });
   }
@@ -158,7 +160,7 @@ app.post('/api/process-audio', upload.single('audio'), async (req, res) => {
 });
 
 // 4. 구글 드라이브 폴더 자동 스캔 및 새 녹음 파일 일괄 동기화
-app.post('/api/sync-drive', async (req, res) => {
+router.post('/sync-drive', async (req, res) => {
   const settings = getSettings();
   const processedHistory = getHistory();
   const processedNames = new Set(processedHistory.map(h => h.originalFileName));
@@ -197,7 +199,7 @@ app.post('/api/sync-drive', async (req, res) => {
 });
 
 // 5. 샘플 통화 데이터로 즉시 시뮬레이션 테스트
-app.post('/api/process-sample', async (req, res) => {
+router.post('/process-sample', async (req, res) => {
   const sampleName = req.body.fileName || `통화 녹음 김부장님_20260815_143000.m4a`;
   const sampleData = {
     callDate: new Date().toISOString().split('T')[0],
@@ -246,7 +248,7 @@ app.post('/api/process-sample', async (req, res) => {
 });
 
 // 파일 다운로드 핸들러
-app.get('/api/files/download/:filename', (req, res) => {
+router.get('/files/download/:filename', (req, res) => {
   const fileName = decodeURIComponent(req.params.filename);
   const filePath = path.join(__dirname, '../storage/google_drive_synced', fileName);
   if (fs.existsSync(filePath)) {
@@ -255,6 +257,10 @@ app.get('/api/files/download/:filename', (req, res) => {
     res.status(404).send('파일을 찾을 수 없습니다.');
   }
 });
+
+// 라우터를 /api 및 / 양쪽에 마운트하여 환경 무관하게 동작 지원
+app.use('/api', router);
+app.use('/', router);
 
 // 백그라운드 자동 스캔 타이머 (로컬 실행 시에만 30초마다 실행)
 if (!isVercel) {

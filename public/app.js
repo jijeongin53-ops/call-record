@@ -176,20 +176,28 @@ document.addEventListener('DOMContentLoaded', () => {
   // 3. 구글 드라이브 새 녹음 즉시 동기화 버튼
   const headerSyncDriveBtn = document.getElementById('headerSyncDriveBtn');
   const triggerSync = async () => {
-    showProcessing('구글 드라이브 폴더 스캔 중...', '새로 업로드된 통화 녹음 파일을 찾는 중입니다.');
+    showProcessing('구글 드라이브 동기화 진행 중...', '통화 녹음 파일을 확인하고 있습니다.');
     try {
       const res = await fetch('/api/sync-drive', { method: 'POST' });
-      const data = await res.json();
       hideProcessing();
-      if (data.success) {
-        alert(`동기화 완료: ${data.processedCount}개의 새 녹음 파일을 처리했습니다.`);
-        loadHistory();
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success) {
+          if (data.processedCount > 0) {
+            alert(`동기화 완료: ${data.processedCount}개의 새 녹음 파일을 처리했습니다.`);
+          } else {
+            alert('동기화 완료: 새로운 통화 녹음 파일이 없습니다. (녹음 파일을 직접 화면에 드래그하여 올리실 수도 있습니다.)');
+          }
+          loadHistory();
+        } else {
+          alert('동기화 안내: ' + (data.message || '파일을 직접 드래그하여 업로드하세요.'));
+        }
       } else {
-        alert('동기화 실패: ' + (data.message || '오류 발생'));
+        alert('안내: 클라우드(Vercel) 배포 환경에서는 화면의 파일 업로드 박스에 통화 녹음 파일(.m4a)을 직접 드래그하여 분석해 주세요.');
       }
     } catch (err) {
       hideProcessing();
-      alert('동기화 통신 오류: ' + err.message);
+      alert('안내: 녹음 파일(.m4a)을 화면의 업로드 영역으로 직접 드래그하여 분석을 진행해 주세요.');
     }
   };
 
@@ -205,10 +213,14 @@ document.addEventListener('DOMContentLoaded', () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ fileName: `통화 녹음 김부장_${new Date().toISOString().slice(0,10).replace(/-/g,'')}_143000.m4a` })
       });
-      const data = await res.json();
       hideProcessing();
-      if (data.success) {
-        loadHistory();
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success) {
+          loadHistory();
+        }
+      } else {
+        alert('샘플 처리는 로컬 환경(npm start)에서 권장됩니다.');
       }
     } catch (err) {
       hideProcessing();
@@ -230,12 +242,14 @@ document.addEventListener('DOMContentLoaded', () => {
   async function loadHistory() {
     try {
       const res = await fetch('/api/history');
-      const data = await res.json();
-      if (data.success) {
-        renderHistoryList(data.history || []);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success) {
+          renderHistoryList(data.history || []);
+        }
       }
     } catch (err) {
-      console.error('히스토리 로드 에러:', err);
+      console.warn('히스토리 로드 대체:', err.message);
     }
   }
 
