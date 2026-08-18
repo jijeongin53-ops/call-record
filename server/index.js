@@ -83,7 +83,8 @@ router.delete('/history/:id', (req, res) => {
 });
 
 // 재사용 가능한 통화녹음 전체 파이프라인 처리 함수
-async function processCallRecording(filePath, originalName, mimeType = 'audio/mp4') {
+async function processCallRecording(filePath, originalName, mimeType = 'audio/mp4', customSettings = {}) {
+  const settings = { ...getSettings(), ...customSettings };
   const historyEntry = {
     id: `call_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
     originalFileName: originalName,
@@ -96,12 +97,12 @@ async function processCallRecording(filePath, originalName, mimeType = 'audio/mp
     // 1단계: 구글 드라이브에 원본 녹음 파일 백업
     historyEntry.statusMessage = '구글 드라이브에 원본 오디오 백업 중...';
     addHistoryItem(historyEntry);
-    const driveAudioResult = await uploadToGoogleDrive(filePath, originalName, mimeType);
+    const driveAudioResult = await uploadToGoogleDrive(filePath, originalName, mimeType, settings.googleDriveFolderId, settings.googleDriveCredentials);
 
     // 2단계: Gemini AI 통화 분석 및 STT
     historyEntry.statusMessage = 'Gemini AI 통화 분석 및 핵심 요약 추출 중...';
     addHistoryItem(historyEntry);
-    const analysisData = await analyzeCallAudio(filePath, originalName, mimeType);
+    const analysisData = await analyzeCallAudio(filePath, originalName, mimeType, settings.geminiApiKey);
 
     // 3단계: 구글 드라이브에 분석 리포트 마크다운 업로드
     historyEntry.statusMessage = '구글 드라이브에 분석 리포트 업로드 중...';
@@ -109,7 +110,9 @@ async function processCallRecording(filePath, originalName, mimeType = 'audio/mp
     const reportFileName = `${analysisData.callDate}_${analysisData.managerName}_${(analysisData.keywords || []).slice(0, 3).join('_')}_리포트.md`;
     const driveReportResult = await uploadReportToGoogleDrive(
       `# ${analysisData.title}\n\n${analysisData.summary}`,
-      reportFileName
+      reportFileName,
+      settings.googleDriveFolderId,
+      settings.googleDriveCredentials
     );
 
     // 4단계: 옵시디언 볼트에 마크다운 파일 저장
@@ -153,8 +156,15 @@ router.post('/process-audio', upload.single('audio'), async (req, res) => {
   const filePath = req.file.path;
   const mimeType = req.file.mimetype || 'audio/mp4';
 
+  let customSettings = {};
   try {
-    const result = await processCallRecording(filePath, rawOriginalName, mimeType);
+    if (req.body.settings) {
+      customSettings = typeof req.body.settings === 'string' ? JSON.parse(req.body.settings) : req.body.settings;
+    }
+  } catch (e) {}
+
+  try {
+    const result = await processCallRecording(filePath, rawOriginalName, mimeType, customSettings);
     res.json({ success: true, result });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
@@ -183,7 +193,7 @@ router.post('/sync-drive', async (req, res) => {
         if (!processedNames.has(file)) {
           const fullPath = path.join(settings.googleDriveLocalPath, file);
           try {
-            const resItem = await processCallRecording(fullPath, file, 'audio/mp4');
+            const resItem = await processCallRecording(fullPath, file, 'audio/mp4', settings);
             newProcessed.push(resItem);
             processedNames.add(file);
           } catch (e) {
@@ -199,15 +209,15 @@ router.post('/sync-drive', async (req, res) => {
   // 방법 B: Google Drive API (서비스 계정)를 통한 원격 폴더 직접 스캔 및 동기화
   if (settings.googleDriveCredentials && settings.googleDriveFolderId) {
     try {
-      const driveFiles = await listDriveFiles(settings.googleDriveFolderId);
+      const driveFiles = await listDriveFiles(settings.googleDriveFolderId, settings.googleDriveCredentials);
       const audioFiles = driveFiles.filter(f => /\.(m4a|mp3|wav|amr)$/i.test(f.name));
 
       for (const file of audioFiles) {
         if (!processedNames.has(file.name)) {
           const tempDownloadPath = path.join(UPLOAD_DIR, `gdrive_${Date.now()}_${file.name}`);
           try {
-            await downloadDriveFile(file.id, tempDownloadPath);
-            const resItem = await processCallRecording(tempDownloadPath, file.name, file.mimeType || 'audio/mp4');
+            await downloadDriveFile(file.id, tempDownloadPath, settings.googleDriveCredentials);
+            const resItem = await processCallRecording(tempDownloadPath, file.name, file.mimeType || 'audio/mp4', settings);
             newProcessed.push(resItem);
             processedNames.add(file.name);
           } catch (e) {
@@ -217,7 +227,14 @@ router.post('/sync-drive', async (req, res) => {
       }
     } catch (err) {
       console.error('구글 드라이브 클라우드 스캔 실패:', err);
-      errors.push({ error: `구글 드라이브 스캔 실패: ${err.message}` });
+      errors.push({ error: err.message });
+    }
+  } else {
+    if (!settings.googleDriveCredentials) {
+      errors.push({ error: '구글 서비스 계정 키(JSON)가 비어 있거나 전달되지 않았습니다.' });
+    }
+    if (!settings.googleDriveFolderId) {
+      errors.push({ error: '구글 드라이브 폴더 ID가 비어 있습니다.' });
     }
   }
 

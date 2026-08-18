@@ -16,9 +16,9 @@ function fileToGenerativePart(filePath, mimeType) {
  * 통화 녹음 오디오 파일을 Gemini AI로 분석하여 
  * 일시, 통화자(담당자), 주요 키워드, 상세 요약, 대화록, 액션아이템 등을 JSON 형식으로 추출
  */
-export async function analyzeCallAudio(filePath, originalFilename, mimeType = 'audio/mp4') {
+export async function analyzeCallAudio(filePath, originalFilename, mimeType = 'audio/mp4', customApiKey = null) {
   const settings = getSettings();
-  const apiKey = settings.geminiApiKey || process.env.GEMINI_API_KEY;
+  const apiKey = customApiKey || settings.geminiApiKey || process.env.GEMINI_API_KEY;
 
   if (!apiKey) {
     throw new Error('Gemini API Key가 설정되지 않았습니다. 설정 화면에서 API 키를 입력해주세요.');

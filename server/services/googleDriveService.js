@@ -57,10 +57,10 @@ function getDriveClient(customCredentials = null) {
 /**
  * 구글 드라이브(또는 백업 스토리지)에 파일 업로드
  */
-export async function uploadToGoogleDrive(filePath, fileName, mimeType, folderId = null) {
+export async function uploadToGoogleDrive(filePath, fileName, mimeType, folderId = null, credentials = null) {
   const settings = getSettings();
   const targetFolderId = folderId || settings.googleDriveFolderId;
-  const drive = getDriveClient();
+  const drive = getDriveClient(credentials);
 
   // 실제 구글 드라이브 API 연동이 설정되어 있는 경우
   if (drive) {
@@ -124,8 +124,8 @@ export async function uploadToGoogleDrive(filePath, fileName, mimeType, folderId
 /**
  * 통화 분석 결과 텍스트(마크다운)를 구글 드라이브에 저장
  */
-export async function uploadReportToGoogleDrive(content, reportFileName, folderId = null) {
-  const tempReportPath = path.join(__dirname, '../../storage', `temp_${Date.now()}_${reportFileName}`);
+export async function uploadReportToGoogleDrive(content, reportFileName, folderId = null, credentials = null) {
+  const tempReportPath = path.join(LOCAL_DRIVE_BACKUP_DIR, `temp_${Date.now()}_${reportFileName}`);
   const storageDir = path.dirname(tempReportPath);
   if (!fs.existsSync(storageDir)) {
     fs.mkdirSync(storageDir, { recursive: true });
@@ -134,7 +134,7 @@ export async function uploadReportToGoogleDrive(content, reportFileName, folderI
   fs.writeFileSync(tempReportPath, content, 'utf-8');
 
   try {
-    const result = await uploadToGoogleDrive(tempReportPath, reportFileName, 'text/markdown', folderId);
+    const result = await uploadToGoogleDrive(tempReportPath, reportFileName, 'text/markdown', folderId, credentials);
     return result;
   } finally {
     if (fs.existsSync(tempReportPath)) {
@@ -146,13 +146,16 @@ export async function uploadReportToGoogleDrive(content, reportFileName, folderI
 /**
  * 구글 드라이브 지정 폴더 내의 녹음 파일 목록 조회
  */
-export async function listDriveFiles(folderId = null) {
+export async function listDriveFiles(folderId = null, credentials = null) {
   const settings = getSettings();
   const targetFolderId = folderId || settings.googleDriveFolderId;
-  const drive = getDriveClient();
+  const drive = getDriveClient(credentials);
 
-  if (!drive || !targetFolderId) {
-    return [];
+  if (!drive) {
+    throw new Error('Google Drive 서비스 계정 인증 정보(JSON)를 파싱할 수 없거나 비어 있습니다. [연동 설정]의 JSON을 확인해 주세요.');
+  }
+  if (!targetFolderId) {
+    throw new Error('구글 드라이브 대상 폴더 ID가 비어 있습니다. [연동 설정]을 확인해 주세요.');
   }
 
   try {
@@ -167,15 +170,15 @@ export async function listDriveFiles(folderId = null) {
     return response.data.files || [];
   } catch (error) {
     console.error('Google Drive 파일 목록 조회 실패:', error);
-    return [];
+    throw new Error(`구글 드라이브 폴더 조회 에러: ${error.message} (폴더에 서비스 계정 이메일이 공유되어 있는지 확인해 주세요)`);
   }
 }
 
 /**
  * 구글 드라이브 파일 다운로드
  */
-export async function downloadDriveFile(fileId, destPath) {
-  const drive = getDriveClient();
+export async function downloadDriveFile(fileId, destPath, credentials = null) {
+  const drive = getDriveClient(credentials);
   if (!drive) {
     throw new Error('Google Drive 클라이언트가 구성되지 않았습니다.');
   }
