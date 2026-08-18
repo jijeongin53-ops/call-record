@@ -173,11 +173,18 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  // 3. 구글 드라이브 새 녹음 즉시 동기화 버튼
+  // 3. 구글 드라이브 새 녹음 즉시 동기화 버튼 (클라이언트 큐 기반 1건씩 안전 순차 분석)
   const headerSyncDriveBtn = document.getElementById('headerSyncDriveBtn');
   const triggerSync = async () => {
-    showProcessing('구글 드라이브 동기화 진행 중...', '통화 녹음 파일을 확인하고 있습니다.');
+    const originalBtnText = syncDriveBtn ? syncDriveBtn.innerHTML : '';
+    const updateProgress = (text) => {
+      if (syncDriveBtn) syncDriveBtn.innerHTML = `<span>⏳</span> ${text}`;
+      if (headerSyncDriveBtn) headerSyncDriveBtn.innerHTML = `<span>⏳</span> ${text}`;
+    };
+
     try {
+      updateProgress('구글 드라이브 파일 목록 확인 중...');
+
       let savedSettings = {};
       try {
         const local = localStorage.getItem('galaxy_call_settings');
@@ -188,7 +195,8 @@ document.addEventListener('DOMContentLoaded', () => {
         .filter(h => h.status === 'completed' || h.status === 'skipped')
         .map(h => h.originalFileName);
 
-      const res = await fetch('/api/sync-drive', {
+      // 1단계: 미분석 파일 목록 가져오기
+      const listRes = await fetch('/api/list-drive-files', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
@@ -198,27 +206,65 @@ document.addEventListener('DOMContentLoaded', () => {
           } 
         })
       });
-      hideProcessing();
-      if (res.ok) {
-        const data = await res.json();
-        if (data.success) {
-          if (data.processedCount > 0) {
-            alert(`🎉 동기화 완료: ${data.processedCount}개의 새 통화 녹음 파일을 분석하여 정리했습니다!`);
-          } else if (data.errors && data.errors.length > 0) {
-            alert(`동기화 오류 알림:\n${data.errors.map(e => e.error || e.file).join('\n')}`);
-          } else {
-            alert('동기화 완료: 새로운 통화 녹음 파일이 없습니다.\n(구글 드라이브 폴더에 서비스 계정이 공유되어 있는지 확인해 주세요.)');
-          }
-          loadHistory();
-        } else {
-          alert('동기화 안내: ' + (data.message || '파일을 직접 드래그하여 업로드하세요.'));
-        }
-      } else {
-        alert('안내: 클라우드(Vercel) 배포 환경에서는 화면의 파일 업로드 박스에 통화 녹음 파일(.m4a)을 직접 드래그하여 분석해 주세요.');
+
+      if (!listRes.ok) {
+        const errData = await listRes.json().catch(() => ({}));
+        throw new Error(errData.message || '파일 목록을 가져올 수 없습니다.');
       }
+
+      const listData = await listRes.json();
+      const pendingFiles = listData.pendingFiles || [];
+
+      if (pendingFiles.length === 0) {
+        alert('동기화 완료: 새로 분석할 통화 녹음 파일이 없습니다.');
+        return;
+      }
+
+      // 2단계: 1건씩 순차적으로 분석 처리
+      let successCount = 0;
+      let skippedCount = 0;
+
+      for (let i = 0; i < pendingFiles.length; i++) {
+        const targetFile = pendingFiles[i];
+        updateProgress(`분석 중 (${i + 1}/${pendingFiles.length}): ${targetFile.name.slice(0, 15)}...`);
+
+        try {
+          const procRes = await fetch('/api/process-single-drive-file', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              file: targetFile,
+              settings: savedSettings
+            })
+          });
+
+          if (procRes.ok) {
+            const procData = await procRes.json();
+            if (procData.result?.status === 'skipped') {
+              skippedCount++;
+            } else {
+              successCount++;
+            }
+            // 즉시 화면 목록 갱신
+            await loadHistory();
+          }
+        } catch (fileErr) {
+          console.warn(`파일 처리 실패 (${targetFile.name}):`, fileErr);
+        }
+
+        // 파일 간 안정 대기 (구글 분당 호출 제한 완화)
+        if (i < pendingFiles.length - 1) {
+          await new Promise(r => setTimeout(r, 4000));
+        }
+      }
+
+      alert(`🎉 분석 완료!\n성공: ${successCount}건\n제외(10초 미만): ${skippedCount}건`);
+      await loadHistory();
     } catch (err) {
-      hideProcessing();
-      alert('안내: 녹음 파일(.m4a)을 화면의 업로드 영역으로 직접 드래그하여 분석을 진행해 주세요.');
+      alert('동기화 안내: ' + err.message);
+    } finally {
+      if (syncDriveBtn) syncDriveBtn.innerHTML = originalBtnText || `<span>🔄</span> 구글 드라이브 새 녹음 지금 동기화`;
+      if (headerSyncDriveBtn) headerSyncDriveBtn.innerHTML = `<span>🔄</span> 구글 드라이브 지금 동기화`;
     }
   };
 

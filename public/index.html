@@ -71,19 +71,10 @@
             </button>
           </div>
 
-          <div id="processingCard" class="processing-card hidden">
-            <div class="spinner"></div>
-            <div class="processing-info">
-              <h4 id="processingStatusTitle">통화 녹음 AI 분석 진행 중...</h4>
-              <p id="processingStatusDetail">Google Gemini가 음성을 듣고 화자/주요 내용을 요약 중입니다.</p>
-              <div class="pipeline-steps">
-                <span class="step-badge" id="step1">1. 음성 분석</span>
-                <span class="step-arrow">→</span>
-                <span class="step-badge" id="step2">2. 드라이브 업로드</span>
-                <span class="step-arrow">→</span>
-                <span class="step-badge" id="step3">3. 옵시디언 동기화</span>
-              </div>
-            </div>
+          <!-- 진행 상태 알림 영역 (간소화) -->
+          <div id="processingCard" style="display: none;">
+            <span id="processingStatusTitle"></span>
+            <span id="processingStatusDetail"></span>
           </div>
         </div>
 

@@ -212,7 +212,62 @@ router.post('/process-audio', upload.single('audio'), async (req, res) => {
   }
 });
 
-// 4. 구글 드라이브 폴더 자동 스캔 및 새 녹음 파일 일괄 동기화
+// 4-1. 구글 드라이브 새 녹음 파일 목록 조회
+router.post('/list-drive-files', async (req, res) => {
+  const clientSettings = req.body?.settings || {};
+  const settings = { ...getSettings(), ...clientSettings };
+  const processedHistory = getHistory();
+  const processedNames = new Set(
+    processedHistory
+      .filter(h => h.status === 'completed' || h.status === 'skipped')
+      .map(h => h.originalFileName)
+  );
+  if (clientSettings.completedFileNames && Array.isArray(clientSettings.completedFileNames)) {
+    clientSettings.completedFileNames.forEach(name => processedNames.add(name));
+  }
+
+  try {
+    if (!settings.googleDriveCredentials) {
+      return res.status(400).json({ success: false, message: '구글 서비스 계정 키(JSON)가 설정되지 않았습니다.' });
+    }
+    if (!settings.googleDriveFolderId) {
+      return res.status(400).json({ success: false, message: '구글 드라이브 폴더 ID가 설정되지 않았습니다.' });
+    }
+
+    const driveFiles = await listDriveFiles(settings.googleDriveFolderId, settings.googleDriveCredentials);
+    const audioFiles = driveFiles.filter(f => /\.(m4a|mp3|wav|amr)$/i.test(f.name));
+    const pendingFiles = audioFiles.filter(f => !processedNames.has(f.name));
+
+    res.json({ success: true, totalCount: audioFiles.length, pendingFiles });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// 4-2. 단일 파일 단계별 분석 처리 (1건씩 안정적 분석)
+router.post('/process-single-drive-file', async (req, res) => {
+  const { file, settings: clientSettings } = req.body;
+  if (!file || !file.id || !file.name) {
+    return res.status(400).json({ success: false, message: '파일 정보가 올바르지 않습니다.' });
+  }
+  const settings = { ...getSettings(), ...(clientSettings || {}) };
+  const tempDownloadPath = path.join(UPLOAD_DIR, `gdrive_${Date.now()}_${file.name}`);
+
+  try {
+    await downloadDriveFile(file.id, tempDownloadPath, settings.googleDriveCredentials);
+    const result = await processCallRecording(tempDownloadPath, file.name, file.mimeType || 'audio/mp4', settings);
+    res.json({ success: true, result });
+  } catch (error) {
+    console.error(`단일 파일 분석 실패 (${file.name}):`, error.message);
+    res.status(500).json({ success: false, message: error.message });
+  } finally {
+    if (fs.existsSync(tempDownloadPath)) {
+      try { fs.unlinkSync(tempDownloadPath); } catch (e) {}
+    }
+  }
+});
+
+// 4. 구글 드라이브 폴더 자동 스캔 및 새 녹음 파일 일괄 동기화 (기존 호환용)
 router.post('/sync-drive', async (req, res) => {
   const clientSettings = req.body?.settings || {};
   if (clientSettings.geminiApiKey || clientSettings.googleDriveCredentials || clientSettings.googleDriveFolderId) {
