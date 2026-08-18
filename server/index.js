@@ -8,7 +8,7 @@ import dotenv from 'dotenv';
 
 import { getSettings, saveSettings, getHistory, addHistoryItem, deleteHistoryItem } from './services/storageService.js';
 import { analyzeCallAudio } from './services/geminiService.js';
-import { uploadToGoogleDrive, uploadReportToGoogleDrive } from './services/googleDriveService.js';
+import { uploadToGoogleDrive, uploadReportToGoogleDrive, listDriveFiles, downloadDriveFile } from './services/googleDriveService.js';
 import { saveToObsidianVault } from './services/obsidianService.js';
 
 dotenv.config();
@@ -189,6 +189,30 @@ router.post('/sync-drive', async (req, res) => {
       }
     } catch (err) {
       console.error('로컬 드라이브 스캔 실패:', err);
+    }
+  }
+
+  // 방법 B: Google Drive API (서비스 계정)를 통한 원격 폴더 직접 스캔 및 동기화
+  if (settings.googleDriveCredentials && settings.googleDriveFolderId) {
+    try {
+      const driveFiles = await listDriveFiles(settings.googleDriveFolderId);
+      const audioFiles = driveFiles.filter(f => /\.(m4a|mp3|wav|amr)$/i.test(f.name));
+
+      for (const file of audioFiles) {
+        if (!processedNames.has(file.name)) {
+          const tempDownloadPath = path.join(UPLOAD_DIR, `gdrive_${Date.now()}_${file.name}`);
+          try {
+            await downloadDriveFile(file.id, tempDownloadPath);
+            const res = await processCallRecording(tempDownloadPath, file.name, file.mimeType || 'audio/mp4');
+            newProcessed.push(res);
+            processedNames.add(file.name);
+          } catch (e) {
+            errors.push({ file: file.name, error: e.message });
+          }
+        }
+      }
+    } catch (err) {
+      console.error('구글 드라이브 클라우드 스캔 실패:', err);
     }
   }
 
