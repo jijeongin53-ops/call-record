@@ -25,10 +25,16 @@ export function saveToObsidianVault(analysisData, driveAudioResult, driveReportR
   
   // 저장할 대상 볼트 디렉토리 결정
   let targetDir = DEFAULT_NOTES_DIR;
-  if (settings.obsidianVaultPath && settings.obsidianVaultPath.trim() !== '') {
-    targetDir = settings.obsidianVaultPath.trim();
-    if (!fs.existsSync(targetDir)) {
-      fs.mkdirSync(targetDir, { recursive: true });
+  if (!isVercel && settings.obsidianVaultPath && settings.obsidianVaultPath.trim() !== '') {
+    try {
+      const customDir = settings.obsidianVaultPath.trim();
+      if (!fs.existsSync(customDir)) {
+        fs.mkdirSync(customDir, { recursive: true });
+      }
+      targetDir = customDir;
+    } catch (e) {
+      console.warn('사용자 지정 볼트 경로 생성 실패 (기본 폴더 사용):', e.message);
+      targetDir = DEFAULT_NOTES_DIR;
     }
   }
 
@@ -102,7 +108,11 @@ ${(analysisData.transcript && analysisData.transcript.length > 0)
 `;
 
   // 파일 작성
-  fs.writeFileSync(filePath, markdownContent, 'utf-8');
+  try {
+    fs.writeFileSync(filePath, markdownContent, 'utf-8');
+  } catch (e) {
+    console.warn('옵시디언 로컬 파일 저장 건너뜀 (서버리스 환경):', e.message);
+  }
 
   return {
     filePath,

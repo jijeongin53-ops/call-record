@@ -25,14 +25,6 @@ export async function analyzeCallAudio(filePath, originalFilename, mimeType = 'a
   }
 
   const genAI = new GoogleGenerativeAI(apiKey);
-  // Gemini 3.6 Flash 모델 사용 (오디오 분석 및 한글 요약 최신 모델)
-  let model;
-  try {
-    model = genAI.getGenerativeModel({ model: 'gemini-3.6-flash' });
-  } catch (e) {
-    model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
-  }
-
   const audioPart = fileToGenerativePart(filePath, mimeType);
 
   const prompt = `
@@ -66,22 +58,32 @@ export async function analyzeCallAudio(filePath, originalFilename, mimeType = 'a
 - 한국어로 정확하고 정중하게 요약해 주세요.
 `;
 
-  try {
-    const result = await model.generateContent([prompt, audioPart]);
-    const responseText = result.response.text();
+  const candidateModels = ['gemini-3.6-flash', 'gemini-2.5-flash'];
+  let lastError = null;
 
-    // JSON 파싱 (코드블록 제거 처리)
-    let cleanedJsonStr = responseText.trim();
-    if (cleanedJsonStr.startsWith('```json')) {
-      cleanedJsonStr = cleanedJsonStr.replace(/^```json/, '').replace(/```$/, '').trim();
-    } else if (cleanedJsonStr.startsWith('```')) {
-      cleanedJsonStr = cleanedJsonStr.replace(/^```/, '').replace(/```$/, '').trim();
+  for (const modelName of candidateModels) {
+    try {
+      const model = genAI.getGenerativeModel({ model: modelName });
+      const result = await model.generateContent([prompt, audioPart]);
+      const responseText = result.response.text();
+
+      // JSON 파싱 (코드블록 제거 처리)
+      let cleanedJsonStr = responseText.trim();
+      if (cleanedJsonStr.startsWith('```json')) {
+        cleanedJsonStr = cleanedJsonStr.replace(/^```json/, '').replace(/```$/, '').trim();
+      } else if (cleanedJsonStr.startsWith('```')) {
+        cleanedJsonStr = cleanedJsonStr.replace(/^```/, '').replace(/```$/, '').trim();
+      }
+
+      const parsedData = JSON.parse(cleanedJsonStr);
+      return parsedData;
+    } catch (error) {
+      console.warn(`Gemini 모델 ${modelName} 호출 시도 실패:`, error.message);
+      lastError = error;
+      await new Promise(r => setTimeout(r, 1000));
     }
-
-    const parsedData = JSON.parse(cleanedJsonStr);
-    return parsedData;
-  } catch (error) {
-    console.error('Gemini 통화 분석 오류:', error);
-    throw new Error(`AI 통화 분석 실패: ${error.message}`);
   }
+
+  console.error('Gemini 통화 분석 최종 오류:', lastError);
+  throw new Error(`AI 통화 분석 실패: ${lastError?.message || '알 수 없는 오류'}`);
 }
